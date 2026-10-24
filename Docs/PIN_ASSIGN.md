@@ -6,10 +6,10 @@
 | A3    | PA1       | ADC2_IN2  | ADC       | LINE_SSR_RC       |           |
 | DEBUG | PA2       | USART2_TX | UART      | (DEBUG_UART)      |           |
 | DEBUG | PA3       | USART2_RX | UART      | (DEBUG_UART)      |           |
-| D2    | PA4       | TIM3_CH2  | PULSE     | BUZZER            |           |
+| D2    | PA4       | TIM3_CH2  | PWM       | BUZZER            |           |
 | ----- | PA5       | ADC2_IN13 | ADC       | UISW1-2           |           |
 | A4    | PA6       | ADC2_IN3  | ADC       | LINE_SSR_LC       |           |
-| A5    | PA7       | ADC2_IN3  | ADC       | LINE_SSR_LL       |           |
+| A5    | PA7       | ADC2_IN4  | ADC       | LINE_SSR_LL       |           |
 | D9    | PA8       | TIM1_CH1  | ENCODER   | L-HALL_B          |           |
 | D1    | PA9       | TIM1_CH2  | ENCODER   | L-HALL_A          |           |
 | D0    | PA10      | PA10      | GPIO      | DIR_L             | AIN1_GPIO |

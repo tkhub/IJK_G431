@@ -37,3 +37,4 @@ build.ninja
 # debug logs
 testlogs/
 bck/
+log/

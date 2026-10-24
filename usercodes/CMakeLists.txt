@@ -1,0 +1,25 @@
+# usercodes内のソースファイルを変数にまとめる
+file(GLOB USER_SOURCES CONFIGURE_DEPENDS
+    "sac/*.c"
+    "sac/*/*.c"
+    "common/*.c"
+    "app/*.c"
+    "app/*/*.c"
+    "service/*.c"
+    "service/*/*.c"
+)
+
+# usercodes内のヘッダーファイル検索パスを追加
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/common
+    ${CMAKE_CURRENT_SOURCE_DIR}/sac
+    ${CMAKE_CURRENT_SOURCE_DIR}/service
+    ${CMAKE_CURRENT_SOURCE_DIR}/service/i2cmn
+    ${CMAKE_CURRENT_SOURCE_DIR}/service/systime
+    ${CMAKE_CURRENT_SOURCE_DIR}/app
+)
+
+# ソースをルートプロジェクトのターゲットに追加
+target_sources(${CMAKE_PROJECT_NAME} PRIVATE
+    ${USER_SOURCES}
+)

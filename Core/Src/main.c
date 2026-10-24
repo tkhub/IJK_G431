@@ -27,7 +27,11 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include <stdint.h>
+#include <xprintf.h>
+#include "../../usercodes/sac/sac.h"
+#include "../../usercodes/app/app.h"
+#include "../../usercodes/service/i2cmn/i2c_manager.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -48,17 +52,81 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+volatile uint16_t   ADC1_DMA_data[2];
+volatile uint16_t   ADC2_DMA_data[6];
+volatile uint16_t   timerIntrDevCnt;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
 
+/**
+ * @brief 500usタイマーハンドラA
+ * @details タイマー割り込み内で実施
+ */
+void timerInterruptHandler_500us(void);
+
+/**
+ * @brief 1msタイマーハンドラA
+ * @details タイマー割り込み内で実施
+ */
+void timerInterruptHandler_1msA(void);
+/**
+ * @brief 1msタイマーハンドラB
+ * @details タイマー割り込み内で実施
+ */
+void timerInterruptHandler_1msB(void);
+
+/**
+ * @brief 10msタイマーハンドラA
+ * @details タイマー割り込み内で実施
+ */
+void timerInterruptHandler_10msA(void);
+/**
+ * @brief 10msタイマーハンドラB
+ * @details タイマー割り込み内で実施
+ */
+void timerInterruptHandler_10msB(void);
+
+
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void _x_putchar(int ch) {
+    HAL_UART_Transmit(&huart2, (uint8_t *)&ch, 1 , 0xFFFF );
+}
+
+void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim) {
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 1);
+    if (htim == &htim7) {
+
+        timerInterruptHandler_500us();
+
+        if (timerIntrDevCnt % 2) {
+            timerInterruptHandler_1msA();
+        }
+        else {
+            timerInterruptHandler_1msB();
+        }
+
+        if (timerIntrDevCnt == 0) {
+            timerInterruptHandler_10msA();
+        }
+        else if (timerIntrDevCnt == 10) {
+            timerInterruptHandler_10msB();
+        }
+
+        if (timerIntrDevCnt == 19) {
+            timerIntrDevCnt = 0;
+        }
+        else {
+            timerIntrDevCnt++;
+        }
+    }
+    HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, 0);
+}
 
 /* USER CODE END 0 */
 
@@ -70,7 +138,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-
+    int cnt = 0;
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -104,6 +172,38 @@ int main(void)
   MX_TIM6_Init();
   MX_TIM7_Init();
   /* USER CODE BEGIN 2 */
+      HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_2);
+      for (cnt = 0; cnt < 8; cnt++) {
+      __HAL_TIM_SET_AUTORELOAD(&htim3, (uint16_t)(4545 / ((cnt + 1))) );
+      __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, (uint16_t)(4545 / ((cnt + 1) * 2)));
+      __HAL_TIM_CLEAR_FLAG(&htim3, TIM_FLAG_UPDATE);
+      HAL_Delay(64 - (cnt * 4));
+      __HAL_TIM_SET_COMPARE(&htim3, TIM_CHANNEL_2, (uint16_t)(0));
+      HAL_Delay(128 - (cnt * 8));
+    }
+    xdev_out(_x_putchar);
+  
+  HAL_ADC_Start_DMA(&hadc1, (uint32_t *)ADC1_DMA_data, 2);
+  HAL_ADC_Start_DMA(&hadc2, (uint32_t *)ADC2_DMA_data, 6);
+
+  HAL_TIM_PWM_Start(&htim16, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(&htim17, TIM_CHANNEL_1);
+
+  HAL_TIM_Encoder_Start(&htim1, TIM_CHANNEL_ALL);
+  HAL_TIM_Encoder_Start(&htim4, TIM_CHANNEL_ALL);
+
+  i2cmanagerInit();
+  /// SAC INIT
+  uiswInit(&ADC2_DMA_data[5]);
+  buzzerInit();
+  motorsInit();
+  linesensorsInit(&ADC2_DMA_data[3], &ADC2_DMA_data[2], &ADC2_DMA_data[1], &ADC2_DMA_data[0]);
+  markersensorsInit(&ADC2_DMA_data[4], &ADC1_DMA_data[0]);
+  batteryInit(&ADC1_DMA_data[1]);
+  timerIntrDevCnt = 0;
+  HAL_TIM_Base_Start(&htim6);
+  __HAL_TIM_SET_COUNTER(&htim7, 127);
+  HAL_TIM_Base_Start_IT(&htim7);
 
   /* USER CODE END 2 */
 
@@ -111,9 +211,13 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+    sacLoop();
+    i2cmanagerMainloop();
+    appMainLoop();
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+    HAL_Delay(10);
   }
   /* USER CODE END 3 */
 }
@@ -165,7 +269,32 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+void timerInterruptHandler_500us(void) {
 
+}
+
+void timerInterruptHandler_1msA(void) {
+    linesensorsMeasure_1ms();
+    markersensorsMeasure_1ms();
+    i2cmanagerControl_1ms_A();
+    imuMeasure_1ms();
+}
+
+void timerInterruptHandler_1msB(void) {
+    i2cmanagerControl_1ms_B();
+    appIntervalHandler_1ms();
+    motorsControl_1ms();
+}
+
+void timerInterruptHandler_10msA(void) {
+    uisw_10ms();
+    buzzer_10ms();
+}
+
+void timerInterruptHandler_10msB(void) {
+    battery_10ms();
+    appIntervalHandler_10ms();
+}
 /* USER CODE END 4 */
 
 /**
