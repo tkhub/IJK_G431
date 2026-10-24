@@ -1,0 +1,39 @@
+# HiddenFile
+.cproject
+.mxproject
+.project
+/.settings/
+.vscode
+
+# STM32 Backup dir
+Core/Src/Backup/
+
+
+# OBJ file
+*.o
+*.su
+*.cyclo
+*.d
+*.launch
+/Relese/
+/Debug/
+/build/
+
+# CMake
+CMakeLists.txt.user
+CMakeCache.txt
+CMakeFiles
+CMakeScripts
+Testing
+Makefile
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+CTestTestfile.cmake
+_deps
+CMakeUserPresets.json
+build.ninja
+
+# debug logs
+testlogs/
+bck/
