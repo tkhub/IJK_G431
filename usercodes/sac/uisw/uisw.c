@@ -38,6 +38,14 @@ typedef enum {
     UISWSQ_BOTH_WAIT_RELEASE    //! 両方のSWが押され、離されるのを待っている状態
 } uiswsq_t;
 
+typedef enum {
+    UISW_ADC_STATE_NONE,
+    UISW_ADC_STATE_SW1,
+    UISW_ADC_STATE_SW2,
+    UISW_ADC_STATE_SW12,
+    UISW_ADC_STATE_ERROR
+} uisw_adc_state_t;
+
 /*========AAAA Typedef Definition END AAAA===================================*/
 
 /*========VVVV MACRO Definition START VVVV===================================*/
@@ -64,13 +72,11 @@ typedef enum {
 volatile static uint16_t* uiswDMARaw;
 volatile static uiswsq_t uiswsq;
 volatile static uiswevent_t uiswevent;
-volatile static bool sw1_tmp, sw2_tmp;
-volatile static bool sw1_tmp2, sw2_tmp2;
-volatile static bool sw1_tmp3, sw2_tmp3;
+volatile static uisw_adc_state_t uiswADCState;
+volatile static uisw_adc_state_t uiswADCCandidate;
+volatile static uint16_t uiswADCStateCount;
 volatile static uint16_t  sw1_OnCount;
 volatile static uint16_t  sw2_OnCount;
-volatile static uint16_t  sw1_OffCount;
-volatile static uint16_t  sw2_OffCount;
 volatile static uint8_t uisw_intvlcnt;
 
 volatile static uiswevent_t* p_uiswBuffer;
@@ -88,9 +94,7 @@ volatile uint8_t    uiswBffTail;
 
 #endif /* _ENABLE_UISW_TEST_ */
 
-static bool uisw_issw1();
-static bool uisw_issw2();
-static bool uisw_issw12();
+static uisw_adc_state_t uisw_readADCState();
 
 /*========AAAA Private Function Prototype Declaration END AAAA===============*/
 
@@ -102,10 +106,9 @@ void uiswInit(volatile uint16_t* answDMA) {
     uiswevent = NON_UISW_EVENT;
     p_uiswBuffer = uisw_event_buffer;
     uiswBffSize = UISW_BUFFER_SIZE;
-    sw1_tmp3 = false;
-    sw2_tmp3 = false;
-    sw1_tmp2 = false;
-    sw2_tmp2 = false;
+    uiswADCState = UISW_ADC_STATE_NONE;
+    uiswADCCandidate = UISW_ADC_STATE_NONE;
+    uiswADCStateCount = 0;
     sw1_OnCount = 0;
     sw2_OnCount = 0;
     uiswDMARaw = answDMA;
@@ -113,16 +116,26 @@ void uiswInit(volatile uint16_t* answDMA) {
 
 void uisw_10ms(void) {
     uiswevent_t swstate = NON_UISW_EVENT;
+    uisw_adc_state_t adcState = uisw_readADCState();
+    bool sw1_active;
+    bool sw2_active;
 
-    /// SW1履歴を3個分保持する
-    sw1_tmp3 = sw1_tmp2;
-    sw1_tmp2 = sw1_tmp;
-    sw1_tmp = uisw_issw1() || uisw_issw12();
+    if (adcState != uiswADCCandidate) {
+        uiswADCCandidate = adcState;
+        uiswADCStateCount = 1;
+    }
+    else if (uiswADCStateCount < UISW_OFFHOLD_10MS) {
+        uiswADCStateCount++;
+    }
 
-    /// SW2履歴を3個分保持する
-    sw2_tmp3 = sw2_tmp2;
-    sw2_tmp2 = sw2_tmp;
-    sw2_tmp = uisw_issw2() || uisw_issw12();
+    if (uiswADCStateCount >= UISW_OFFHOLD_10MS) {
+        uiswADCState = uiswADCCandidate;
+    }
+
+    sw1_active = (uiswADCState == UISW_ADC_STATE_SW1) ||
+                 (uiswADCState == UISW_ADC_STATE_SW12);
+    sw2_active = (uiswADCState == UISW_ADC_STATE_SW2) ||
+                 (uiswADCState == UISW_ADC_STATE_SW12);
 
     switch (uiswsq) {
     default: /// UISWSQ_INIT
@@ -131,13 +144,13 @@ void uisw_10ms(void) {
 
     case UISWSQ_WAIT_PUSH:
         /// スイッチ押下待ち
-        if (sw1_tmp && sw1_tmp2 && !sw1_tmp3) {
+        if (sw1_active) {
             uiswsq = UISW1SQ_WAIT_RELEASE;
             // 長押し判定用カウンタに判定値をセット
             sw1_OnCount = UISW_HOLD_10MS;
         }
 
-        else if (sw2_tmp && sw2_tmp2 && !sw2_tmp3) {
+        else if (sw2_active) {
             uiswsq = UISW2SQ_WAIT_RELEASE;
             // 長押し判定用カウンタに判定値をセット
             sw2_OnCount = UISW_HOLD_10MS;
@@ -152,13 +165,12 @@ void uisw_10ms(void) {
         }
         else {
             sw1_OnCount--;
-            if (!sw1_tmp && !sw1_tmp2 && sw1_tmp3) {
-                // 直近2回はSW1が押されていない場合、スイッチ押下待ちに遷移するとともSW1押下イベントを発行
+            if (!sw1_active) {
+                // SW1が安定して押されていない場合、押下イベントを発行
                 uiswsq = UISWSQ_WAIT_PUSH;
                 swstate = UISW1_PUSH_EVENT;
             }
-            else if (   (sw1_tmp && sw1_tmp2) &&
-                        (sw2_tmp && sw2_tmp2 && sw2_tmp3)) {
+            else if (sw2_active) {
                 // SW2も同時に押される場合、両押しイベントを発行
                 uiswsq = UISWSQ_BOTH_WAIT_RELEASE;
                 swstate = UISW_BOTH_EVENT;
@@ -177,13 +189,12 @@ void uisw_10ms(void) {
         }
         else {
             sw2_OnCount--;
-            if (!sw2_tmp && !sw2_tmp2 && sw2_tmp3) {
-                // 直近2回はSW2が押されていない場合、スイッチ押下待ちに遷移するとともSW2押下イベントを発行
+            if (!sw2_active) {
+                // SW2が安定して押されていない場合、押下イベントを発行
                 uiswsq = UISWSQ_WAIT_PUSH;
                 swstate = UISW2_PUSH_EVENT;
             }
-            else if (   (sw2_tmp && sw2_tmp2) &&
-                        (sw1_tmp && sw1_tmp2 && sw1_tmp3)) {
+            else if (sw1_active) {
                 // SW1も同時に押される場合、両押しイベントを発行
                 uiswsq = UISWSQ_BOTH_WAIT_RELEASE;
                 swstate = UISW_BOTH_EVENT;
@@ -196,23 +207,22 @@ void uisw_10ms(void) {
         break;
 
     case UISW1SQ_LONG_WAIT_RELEASE:
-        if (!sw1_tmp && !sw1_tmp2 && !sw1_tmp3) {
-            // SW1長押しが終わり、SW1が３周期分OFFの場合は長押し終わりのイベントを発行
+        if (!sw1_active) {
+            // SW1が安定してOFFの場合は長押し終わりのイベントを発行
             uiswsq = UISWSQ_WAIT_PUSH;
             swstate = UISW1_LONG_RELEASE_EVENT;
         }
         break;
     case UISW2SQ_LONG_WAIT_RELEASE:
-        if (!sw2_tmp && !sw2_tmp2 && !sw2_tmp3) {
-            // SW2長押しが終わり、SW2が３周期分OFFの場合は長押し終わりのイベントを発行
+        if (!sw2_active) {
+            // SW2が安定してOFFの場合は長押し終わりのイベントを発行
             uiswsq = UISWSQ_WAIT_PUSH;
             swstate = UISW2_LONG_RELEASE_EVENT;
         }
         break;
     case UISWSQ_BOTH_WAIT_RELEASE:
-        if (    !sw1_tmp && !sw1_tmp2 && !sw1_tmp3 &&
-                !sw2_tmp && !sw2_tmp2 && !sw2_tmp3 ) {
-            // どのスイッチも押されていない状態が３周期分継続しているならば
+        if (!sw1_active && !sw2_active) {
+            // どのスイッチも安定して押されていない場合
             uiswsq = UISWSQ_WAIT_PUSH;
         }
         break;
@@ -330,37 +340,26 @@ uint8_t uiswTest(char* strBuffer, uint8_t maxBufferSize) {
 /*========AAAA GLOBAL Function Definition END AAAA===========================*/
 
 /*========VVVV Private Function Definition START VVVV========================*/
-static bool uisw_issw1() {
-    if (    (UISW_ADC_SW12_SW1_TH < *uiswDMARaw) &&
-            (*uiswDMARaw < UISW_ADC_SW1_SW2_TH) ) {
-        return true;
+static uisw_adc_state_t uisw_readADCState() {
+    if (*uiswDMARaw < UISW_ADC_ERR_SW12_TH) {
+        return UISW_ADC_STATE_ERROR;
+    }
+    else if (    (UISW_ADC_ERR_SW12_TH < *uiswDMARaw) &&
+                 (*uiswDMARaw < UISW_ADC_SW12_SW1_TH) ) {
+        return UISW_ADC_STATE_SW12;
+    }
+    else if (    (UISW_ADC_SW12_SW1_TH < *uiswDMARaw) &&
+                 (*uiswDMARaw < UISW_ADC_SW1_SW2_TH) ) {
+        return UISW_ADC_STATE_SW1;
+    }
+    else if (    (UISW_ADC_SW1_SW2_TH < *uiswDMARaw) &&
+                 (*uiswDMARaw < UISW_ADC_SW2_NON_TH) ) {
+        return UISW_ADC_STATE_SW2;
     }
     else {
-        return false;
-    }
-}
-
-static bool uisw_issw2() {
-    if (    (UISW_ADC_SW1_SW2_TH < *uiswDMARaw) &&
-            (*uiswDMARaw < UISW_ADC_SW2_NON_TH) ) {
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
-static bool uisw_issw12() {
-    if (    (UISW_ADC_ERR_SW12_TH < *uiswDMARaw) &&
-            (*uiswDMARaw < UISW_ADC_SW12_SW1_TH) ) {
-        return true;
-    }
-    else {
-        return false;
+        return UISW_ADC_STATE_NONE;
     }
 }
 
 /*========AAAA Private Function Definition END AAAA==========================*/
-
-
 

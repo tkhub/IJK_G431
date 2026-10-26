@@ -198,7 +198,7 @@ int main(void)
   buzzerInit();
   motorsInit();
   linesensorsInit(&ADC2_DMA_data[3], &ADC2_DMA_data[2], &ADC2_DMA_data[1], &ADC2_DMA_data[0]);
-  markersensorsInit(&ADC2_DMA_data[4], &ADC1_DMA_data[0]);
+  markersensorsInit(&ADC1_DMA_data[0], &ADC2_DMA_data[4]);
   batteryInit(&ADC1_DMA_data[1]);
   timerIntrDevCnt = 0;
   HAL_TIM_Base_Start(&htim6);
