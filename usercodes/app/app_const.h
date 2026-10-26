@@ -2,6 +2,7 @@
 #define __APP_CONST_H__
 
 #define MAX_PARAM_NUM 8
+#define RUN_PARAM_COUNT 5
 extern const float RUN_POWERS[MAX_PARAM_NUM];
 extern const float RUN_BREAK[MAX_PARAM_NUM];
 

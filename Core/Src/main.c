@@ -203,6 +203,7 @@ int main(void)
   timerIntrDevCnt = 0;
   HAL_TIM_Base_Start(&htim6);
   __HAL_TIM_SET_COUNTER(&htim7, 127);
+  appInit();
   HAL_TIM_Base_Start_IT(&htim7);
 
   /* USER CODE END 2 */
