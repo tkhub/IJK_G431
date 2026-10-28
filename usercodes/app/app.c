@@ -199,7 +199,7 @@ void appMainLoop(void){
         if (mkev == MARKER_EVENT_CORNER) {
             buzzerSetScheduleMs(3520.0F, 200,10);
             zanteiSq = ZANTEI_WAIT_PASSCRS;
-            zanteiCnt = 5;
+            zanteiCnt = 50;
             run_length_tmp = run_length;
             xprintf("ZANTEI CORNER");
         }
@@ -214,6 +214,7 @@ void appMainLoop(void){
             buzzerSetScheduleMs(2637.020F, 400,10);
             zanteiSq = ZANTEI_WAIT_PASSCRS;
             zanteiCnt = 50;
+            run_length_tmp = run_length;
             xprintf("ZANTEI CROSS");
         }
 
@@ -221,7 +222,7 @@ void appMainLoop(void){
             ijk_drives.powerLR = 0.2;
             buzzerSetScheduleMs(3520.0F, 1000,100);
             zanteiSq = ZANTEI_WAIT_STOP;
-            zanteiCnt = 100;
+            zanteiCnt = 200;
             run_length_tmp = run_length;
             xprintf("ZANTEI STOP");
         }
@@ -229,7 +230,8 @@ void appMainLoop(void){
         break;
 
     case ZANTEI_WAIT_PASSCRS:
-        if (zanteiCnt == 0) {
+        if (((run_length_tmp + RUN_MARKER_MIN_INTERVAL_MM) < run_length) || (zanteiCnt == 0)) {
+            xprintf("%f,\t%f,\t%f,\t%f,\t%f,MSKEND", pos, mL, mR, run_length, run_length_tmp);
             zanteiSq = ZANTEI_WAIT_GOALGT;
         }
         else {
@@ -239,7 +241,7 @@ void appMainLoop(void){
 
     case ZANTEI_WAIT_STOP:
 
-        if (zanteiCnt == 0) {
+        if (((run_length_tmp + RUN_MARKER_MIN_INTERVAL_MM) < run_length) || (zanteiCnt == 0)) {
             ijk_drives.powerLR = 0.0F;
             ijk_drives.breakGain = 0.0F;
             buzzerSetScheduleMs(1568.0F, 490,10);
