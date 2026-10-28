@@ -72,6 +72,8 @@ volatile static uint8_t zanteiSq = ZANTEI_WAIT_INIT;
 volatile static uint8_t     run_param_cnt;
 volatile static float       run_power;
 volatile static float       run_break_gain;
+volatile static float       run_length;
+volatile static float       run_length_tmp;
 
 /*========AAAA Private Function Prototype Declaration END AAAA===============*/
 
@@ -98,6 +100,9 @@ void appIntervalHandler_1ms(void) {
 
 /** APPの10msインターバルハンドラ */
 void appIntervalHandler_10ms(void) {
+    float roundL, roundR;
+    motorsReadRound(&roundL, &roundR);
+    run_length = (roundL + roundR) * RUN_RPS2LENGTH_GAIN / 2.0F;
 }
 
 /** APPのメインループ */
@@ -190,11 +195,12 @@ void appMainLoop(void){
         break;
 
     case ZANTEI_WAIT_GOALGT:
-        xprintf("%f,\t%f,\t%f", pos, mL, mR);
+        xprintf("%f,\t%f,\t%f,\t%f,\t%f", pos, mL, mR, run_length, run_length_tmp);
         if (mkev == MARKER_EVENT_CORNER) {
             buzzerSetScheduleMs(3520.0F, 200,10);
             zanteiSq = ZANTEI_WAIT_PASSCRS;
             zanteiCnt = 5;
+            run_length_tmp = run_length;
             xprintf("ZANTEI CORNER");
         }
         else if ((mkev == MARKER_EVENT_CROSS) ||
@@ -216,6 +222,7 @@ void appMainLoop(void){
             buzzerSetScheduleMs(3520.0F, 1000,100);
             zanteiSq = ZANTEI_WAIT_STOP;
             zanteiCnt = 100;
+            run_length_tmp = run_length;
             xprintf("ZANTEI STOP");
         }
         xprintf("\n\r");
