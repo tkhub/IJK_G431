@@ -230,7 +230,18 @@ void appMainLoop(void){
         break;
 
     case ZANTEI_WAIT_PASSCRS:
-        if (((run_length_tmp + RUN_MARKER_MIN_INTERVAL_MM) < run_length) || (zanteiCnt == 0)) {
+        if (
+                (mkev == MARKER_EVENT_CORNER) ||
+                (mkev == MARKER_EVENT_CROSS) ||
+                (ijk_sensors.linesensor.binaries == 0x09) ||
+                (ijk_sensors.linesensor.binaries == 0x0F) ||
+                (ijk_sensors.linesensor.binaries == 0x0B) ||
+                (ijk_sensors.linesensor.binaries == 0x0D) ||
+                (ijk_sensors.linesensor.binaries == 0x0A) ||
+                (ijk_sensors.linesensor.binaries == 0x05) ) {
+            run_length_tmp = run_length;
+        }
+        else if (((run_length_tmp + RUN_MARKER_MIN_INTERVAL_MM) < run_length) || (zanteiCnt == 0)) {
             xprintf("%f,\t%f,\t%f,\t%f,\t%f,MSKEND", pos, mL, mR, run_length, run_length_tmp);
             zanteiSq = ZANTEI_WAIT_GOALGT;
         }

@@ -58,8 +58,8 @@ void divider(const float acc, const float str, float* l, float* r);
 void tracectrlInit(void) {
     speed = 0.0F;
     steering = 0.0F;
-    kp = 0.015F;
-    kd = 0.2F;
+    kp = 0.0375F;
+    kd = 0.525F;
     kdd = 0.075F;
 }
 
